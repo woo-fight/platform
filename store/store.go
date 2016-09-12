@@ -288,6 +288,7 @@ type StatusStore interface {
 type FileInfoStore interface {
 	Save(info *model.FileInfo) StoreChannel
 	Get(id string) StoreChannel
+	GetByPath(path string) StoreChannel
 	GetForPost(postId string) StoreChannel
 	AttachToPost(info *model.FileInfo, postId string) StoreChannel
 	DeleteForPost(postId string) StoreChannel
