@@ -57,6 +57,11 @@ const (
 type ServiceSettings struct {
 	SiteURL                           *string
 	ListenAddress                     string
+	ConnectionSecurity                *string
+	TLSCertFile                       *string
+	TLSKeyFile                        *string
+	UseLetsEncrypt                    *bool
+	LetsEncryptCertificateCacheFile   *string
 	MaximumLoginAttempts              int
 	SegmentDeveloperKey               string
 	GoogleDeveloperKey                string
@@ -894,6 +899,31 @@ func (o *Config) SetDefaults() {
 		*o.NativeAppSettings.IosAppDownloadLink = "https://about.mattermost.com/mattermost-ios-app/"
 	}
 
+	if o.ServiceSettings.ConnectionSecurity == nil {
+		o.ServiceSettings.ConnectionSecurity = new(string)
+		*o.ServiceSettings.ConnectionSecurity = ""
+	}
+
+	if o.ServiceSettings.TLSKeyFile == nil {
+		o.ServiceSettings.TLSKeyFile = new(string)
+		*o.ServiceSettings.TLSKeyFile = ""
+	}
+
+	if o.ServiceSettings.TLSCertFile == nil {
+		o.ServiceSettings.TLSCertFile = new(string)
+		*o.ServiceSettings.TLSCertFile = ""
+	}
+
+	if o.ServiceSettings.UseLetsEncrypt == nil {
+		o.ServiceSettings.UseLetsEncrypt = new(bool)
+		*o.ServiceSettings.UseLetsEncrypt = false
+	}
+
+	if o.ServiceSettings.LetsEncryptCertificateCacheFile == nil {
+		o.ServiceSettings.TLSCertFile = new(string)
+		*o.ServiceSettings.TLSCertFile = "./config/letsencrypt.cache"
+	}
+
 	o.defaultWebrtcSettings()
 }
 
@@ -1099,6 +1129,10 @@ func (o *Config) IsValid() *AppError {
 
 	if err := o.isValidWebrtcSettings(); err != nil {
 		return err
+	}
+
+	if !(*o.ServiceSettings.ConnectionSecurity == CONN_SECURITY_NONE || *o.ServiceSettings.ConnectionSecurity == CONN_SECURITY_TLS) {
+		return NewLocAppError("Config.IsValid", "model.config.is_valid.webserver_security.app_error", nil, "")
 	}
 
 	return nil

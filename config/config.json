@@ -2,6 +2,11 @@
     "ServiceSettings": {
         "SiteURL": "",
         "ListenAddress": ":8065",
+        "ConnectionSecurity": "TLS",
+        "UseLetsEncrypt": true,
+        "LetsEncryptCertificateStorageFolder": "./config/",
+        "TLSCertFile": "server.crt",
+        "TLSKeyFile": "server.key",
         "MaximumLoginAttempts": 10,
         "SegmentDeveloperKey": "",
         "GoogleDeveloperKey": "",

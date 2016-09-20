@@ -4,22 +4,27 @@
 package api
 
 import (
-	l4g "github.com/alecthomas/log4go"
-	"github.com/braintree/manners"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/mattermost/platform/store"
-	"github.com/mattermost/platform/utils"
-	"gopkg.in/throttled/throttled.v1"
-	throttledStore "gopkg.in/throttled/throttled.v1/store"
+	"crypto/tls"
 	"net/http"
 	"strings"
 	"time"
+
+	l4g "github.com/alecthomas/log4go"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/mattermost/platform/model"
+	"github.com/mattermost/platform/store"
+	"github.com/mattermost/platform/utils"
+	"github.com/tylerb/graceful"
+	"gopkg.in/throttled/throttled.v1"
+	throttledStore "gopkg.in/throttled/throttled.v1/store"
+	"rsc.io/letsencrypt"
 )
 
 type Server struct {
-	Store  store.Store
-	Router *mux.Router
+	Store           store.Store
+	Router          *mux.Router
+	GracefullServer *graceful.Server
 }
 
 type CorsWrapper struct {
@@ -73,8 +78,32 @@ func StartServer() {
 		handler = th.Throttle(&CorsWrapper{Srv.Router})
 	}
 
+	Srv.GracefullServer = &graceful.Server{
+		Timeout: 5 * time.Second,
+		Server: &http.Server{
+			Addr:         utils.Cfg.ServiceSettings.ListenAddress,
+			Handler:      handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler),
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		},
+	}
+
 	go func() {
-		err := manners.ListenAndServe(utils.Cfg.ServiceSettings.ListenAddress, handlers.RecoveryHandler(handlers.PrintRecoveryStack(true))(handler))
+		var err error
+		if *utils.Cfg.ServiceSettings.ConnectionSecurity == model.CONN_SECURITY_TLS {
+			if *utils.Cfg.ServiceSettings.UseLetsEncrypt {
+				var m letsencrypt.Manager
+				m.CacheFile(*utils.Cfg.ServiceSettings.LetsEncryptCertificateCacheFile)
+
+				err = Srv.GracefullServer.ListenAndServeTLSConfig(&tls.Config{
+					GetCertificate: m.GetCertificate,
+				})
+			} else {
+				err = Srv.GracefullServer.ListenAndServeTLS(*utils.Cfg.ServiceSettings.TLSCertFile, *utils.Cfg.ServiceSettings.TLSKeyFile)
+			}
+		} else {
+			err = Srv.GracefullServer.ListenAndServe()
+		}
 		if err != nil {
 			l4g.Critical(utils.T("api.server.start_server.starting.critical"), err)
 			time.Sleep(time.Second)
@@ -86,7 +115,7 @@ func StopServer() {
 
 	l4g.Info(utils.T("api.server.stop_server.stopping.info"))
 
-	manners.Close()
+	Srv.GracefullServer.Stop(5 * time.Second)
 	Srv.Store.Close()
 	hub.Stop()
 
